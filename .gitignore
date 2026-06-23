@@ -1,0 +1,33 @@
+# Build artifacts
+/netlog
+/dist/
+/bin/
+
+# Go
+*.test
+*.out
+/coverage.txt
+
+# Frontend
+node_modules/
+web/node_modules/
+web/dist/
+web/.svelte-kit/
+*.tsbuildinfo
+
+# Local runtime data & secrets
+/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+config.yaml
+!config.example.yaml
+cty.xml
+cty.xml.gz
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

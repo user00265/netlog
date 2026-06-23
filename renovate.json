@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests"
+  ],
+  "dependencyDashboard": false,
+  "packageRules": [
+    {
+      "description": "Automerge patch-level Go/npm bumps. Gated by CI only when Renovate's PRs actually run it (a RENOVATE_TOKEN PAT) AND `just check` is a required status check on master; otherwise they merge untested.",
+      "matchManagers": ["gomod", "npm"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "groupName": "patch updates"
+    },
+    {
+      "description": "Group Go minor updates; majors get their own PR. Reviewed, not automerged.",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "go modules (minor)"
+    },
+    {
+      "description": "Group frontend (pnpm) minor updates; majors get their own PR. Reviewed, not automerged.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "frontend (minor)"
+    },
+    {
+      "description": "Keep the SHA-pinned GitHub Actions current, grouped into one PR. Reviewed, not automerged — these are executable CI code.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions digests"
+    },
+    {
+      "description": "DHI static base ships YYYYMMDD-<distro> tags. Parse the date as the version and stay within the same distro (compatibility), so Renovate proposes a newer dated build of alpine3.24 — not a jump to debian. Reviewed, not automerged — it is a base-image change. Requires the dhi.io hostRule (injected from repo secrets in renovate.yml).",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["dhi.io/static"],
+      "versioning": "regex:^(?<major>\\d{4})(?<minor>\\d{2})(?<patch>\\d{2})(?:-(?<compatibility>.+))?$"
+    }
+  ]
+}

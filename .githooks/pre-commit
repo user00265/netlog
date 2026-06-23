@@ -1,0 +1,17 @@
+#!/bin/sh
+# NetLog pre-commit hook: run `just check`, refuse the commit on failure.
+# Installed via `just install-hooks` (sets core.hooksPath to .githooks).
+
+if ! command -v just >/dev/null 2>&1; then
+    echo "pre-commit: 'just' not found on PATH; cannot run checks." >&2
+    echo "Install just (https://github.com/casey/just) or skip with 'git commit --no-verify'." >&2
+    exit 1
+fi
+
+echo "pre-commit: running 'just check'..."
+if ! just check; then
+    echo >&2
+    echo "pre-commit: 'just check' failed; commit aborted." >&2
+    echo "Fix the issues above, or bypass with 'git commit --no-verify'." >&2
+    exit 1
+fi

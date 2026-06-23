@@ -1,0 +1,62 @@
+# Example NetLog deployment.
+#
+# NetLog runs as a single container: the Go server, background workers, and the
+# embedded Svelte SPA are all one binary installed at /app/netlog. It is started
+# with `-config /app/config.yaml`; if that file is not mounted, NetLog falls
+# back to its built-in defaults overridden by the NETLOG_* environment variables
+# below. Pick ONE of the two configuration styles (file or environment).
+#
+#   docker compose up -d
+#
+# Then open http://localhost:8080 and create the first account (it becomes the
+# administrator).
+
+services:
+  netlog:
+    image: ghcr.io/user00265/netlog:latest
+    # Pin to a specific release instead of `latest` for reproducible deploys,
+    # e.g. ghcr.io/user00265/netlog:v1.2.3 — or :testing for the bleeding edge.
+    container_name: netlog
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      # Persistent data: the SQLite database and the cached cty.xml DXCC dataset.
+      - netlog-data:/data
+      # Optional: mount a config file instead of using the environment variables
+      # below. Uncomment ONLY if ./config.yaml actually exists — otherwise Docker
+      # creates a directory at that path. (Read-only is fine; NetLog never writes
+      # its config.)
+      # - ./config.yaml:/app/config.yaml:ro
+
+    environment:
+      # --- Storage (point both at the mounted /data volume) -------------------
+      NETLOG_DB_PATH: /data/netlog.sqlite
+      NETLOG_DATA_DIR: /data
+
+      # --- Server ------------------------------------------------------------
+      # NETLOG_ADDR: ":8080"
+      # The externally reachable URL. Set this to your real https origin when
+      # behind a reverse proxy — it drives secure-cookie and OIDC redirect URLs.
+      # NETLOG_BASE_URL: "https://net.example.org"
+
+      # --- Logging -----------------------------------------------------------
+      # NETLOG_LOG_LEVEL: info     # trace | debug | info | warn | error
+      # NETLOG_LOG_FORMAT: text    # text | json
+
+      # --- Callbook credentials (QRZ / HamQTH lookups) -----------------------
+      # NETLOG_QRZ_USERNAME: ""
+      # NETLOG_QRZ_PASSWORD: ""
+      # NETLOG_HAMQTH_USERNAME: ""
+      # NETLOG_HAMQTH_PASSWORD: ""
+
+      # --- OIDC single sign-on (optional) ------------------------------------
+      # NETLOG_OIDC_ENABLED: "true"
+      # NETLOG_OIDC_ISSUER: "https://idp.example.org"
+      # NETLOG_OIDC_CLIENT_ID: ""
+      # NETLOG_OIDC_CLIENT_SECRET: ""
+
+volumes:
+  netlog-data:

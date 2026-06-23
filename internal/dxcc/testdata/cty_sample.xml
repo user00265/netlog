@@ -1,0 +1,24 @@
+<clublog date='2026-06-01T20:30:06+00:00'>
+<entities>
+	<entity><adif>1</adif><name>CANADA</name><prefix>VE</prefix><deleted>false</deleted><cqz>5</cqz><cont>NA</cont><long>-80.00</long><lat>45.00</lat></entity>
+	<entity><adif>291</adif><name>UNITED STATES OF AMERICA</name><prefix>K</prefix><deleted>false</deleted><cqz>5</cqz><cont>NA</cont><long>-90.00</long><lat>37.00</lat></entity>
+	<entity><adif>223</adif><name>ENGLAND</name><prefix>G</prefix><deleted>false</deleted><cqz>14</cqz><cont>EU</cont><long>0.00</long><lat>52.00</lat></entity>
+	<entity><adif>230</adif><name>FEDERAL REPUBLIC OF GERMANY</name><prefix>DL</prefix><deleted>false</deleted><cqz>14</cqz><cont>EU</cont><long>10.00</long><lat>51.00</lat></entity>
+	<entity><adif>489</adif><name>CONWAY REEF</name><prefix>3D2/C</prefix><deleted>false</deleted><cqz>32</cqz><cont>OC</cont><long>174.40</long><lat>-21.40</lat></entity>
+</entities>
+<exceptions>
+	<exception record='1'><call>ZZ1Z</call><entity>CANADA</entity><adif>1</adif><cqz>4</cqz><cont>NA</cont><long>-59.96</long><lat>45.02</lat></exception>
+</exceptions>
+<prefixes>
+	<prefix record='1'><call>K</call><entity>UNITED STATES OF AMERICA</entity><adif>291</adif><cqz>5</cqz><cont>NA</cont><long>-90.00</long><lat>37.00</lat></prefix>
+	<prefix record='2'><call>W</call><entity>UNITED STATES OF AMERICA</entity><adif>291</adif><cqz>5</cqz><cont>NA</cont><long>-90.00</long><lat>37.00</lat></prefix>
+	<prefix record='3'><call>W1</call><entity>UNITED STATES OF AMERICA</entity><adif>291</adif><cqz>5</cqz><cont>NA</cont><long>-71.00</long><lat>42.00</lat></prefix>
+	<prefix record='4'><call>VE</call><entity>CANADA</entity><adif>1</adif><cqz>5</cqz><cont>NA</cont><long>-80.00</long><lat>45.00</lat></prefix>
+	<prefix record='5'><call>G</call><entity>ENGLAND</entity><adif>223</adif><cqz>14</cqz><cont>EU</cont><long>0.00</long><lat>52.00</lat></prefix>
+	<prefix record='6'><call>M</call><entity>ENGLAND</entity><adif>223</adif><cqz>14</cqz><cont>EU</cont><long>0.00</long><lat>52.00</lat></prefix>
+	<prefix record='7'><call>DL</call><entity>FEDERAL REPUBLIC OF GERMANY</entity><adif>230</adif><cqz>14</cqz><cont>EU</cont><long>10.00</long><lat>51.00</lat></prefix>
+	<prefix record='8'><call>3D2/C</call><entity>CONWAY REEF</entity><adif>489</adif><cqz>32</cqz><cont>OC</cont><long>174.40</long><lat>-21.40</lat></prefix>
+</prefixes>
+<zone_exceptions>
+</zone_exceptions>
+</clublog>

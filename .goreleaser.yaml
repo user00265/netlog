@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+pro: false
+
+before:
+  hooks:
+    - just build-web
+    - just check
+
+builds:
+  - id: netlog
+    main: ./cmd/netlog
+    binary: netlog
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+      - "386"
+    goarm:
+      - "v7"
+    goamd64:
+      - "v1"
+    go386:
+      - sse2
+    ldflags:
+      - -w -s
+      - -buildid={{ .Version }}
+      - -X netlog/internal/config.Version={{ .Version }}
+      - -X netlog/internal/config.Revision={{ .ShortCommit }}
+      - -X netlog/internal/config.BuildTime={{ .Date }}
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: netlog-archive
+    ids:
+      - netlog
+    formats:
+      - tar.gz
+      - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+# Multi-arch container image published to the GitHub Container Registry.
+# dockers_v2 builds one buildx multi-platform manifest, reusing the binaries
+# already built above (see Dockerfile, which COPYs $TARGETPLATFORM/netlog).
+# The exact version always publishes; the rolling tags (vX.Y, vX, latest) render
+# empty — and are therefore skipped — for pre-releases, so an -rc tag never
+# moves `latest`. Pushing happens only on a real release, not in --snapshot.
+dockers_v2:
+  - id: netlog
+    dockerfile: Dockerfile
+    images:
+      - "ghcr.io/user00265/netlog"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    tags:
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: "Offline-first logging for amateur-radio directed nets"
+      org.opencontainers.image.url: "https://github.com/user00265/netlog"
+      org.opencontainers.image.source: "https://github.com/user00265/netlog"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: "MIT"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  draft: true
+  prerelease: auto
+  make_latest: true
+  header: |
+    ## Release {{ .Tag }}
+
+    {{ if .TagContents }}{{ .TagContents }}{{ end }}
+  footer: >-
+
+    ---
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).

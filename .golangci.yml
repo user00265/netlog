@@ -1,0 +1,154 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    # correctness / bug-catching
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - copyloopvar
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - intrange
+    - loggercheck
+    - makezero
+    - mirror
+    - musttag
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nosprintfhostport
+    - predeclared
+    - reassign
+    - recvcheck
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - testifylint
+    - tparallel
+    - usestdlibvars
+    - usetesting
+    # style / hygiene
+    - depguard
+    - gocritic
+    - goconst
+    - gosec
+    - nakedret
+    - nolintlint
+    - perfsprint
+    - revive
+    - testableexamples
+    - unconvert
+    - unparam
+    - wastedassign
+    - whitespace
+    # complexity caps (high thresholds — flag only egregious cases)
+    - cyclop
+    - gocognit
+
+  settings:
+    cyclop:
+      max-complexity: 30
+      package-average: 10.0
+    errcheck:
+      check-type-assertions: true
+    exhaustive:
+      check: [switch]
+    gocognit:
+      min-complexity: 30
+    goconst:
+      ignore-tests: true # test fixtures legitimately repeat literal strings
+    gocritic:
+      settings:
+        captLocal:
+          paramsOnly: false
+        underef:
+          skipRecvDeref: false
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # too noisy; not worth the struct churn
+        - shadow # flags idiomatic `if err := f(); err != nil` reuse
+    nakedret:
+      max-func-lines: 0
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-no-explanation: [cyclop, gocognit]
+    perfsprint:
+      strconcat: false
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: superfluous-else
+        - name: time-naming
+        - name: unreachable-code
+        - name: var-declaration
+    sloglint:
+      no-global: all
+      context: scope
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # don't require package comments
+    depguard:
+      rules:
+        non-main files:
+          files: ["!**/main.go"]
+          deny:
+            - pkg: log$
+              desc: Use log/slog instead
+        non-test files:
+          files: ["!$test"]
+          deny:
+            - pkg: math/rand$
+              desc: Use math/rand/v2 instead
+
+  exclusions:
+    warn-unused: true
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Relax style/security/complexity linters in tests
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - goconst
+          - gosec
+          - noctx
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - netlog

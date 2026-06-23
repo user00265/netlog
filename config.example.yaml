@@ -1,0 +1,64 @@
+# NetLog configuration. Copy to config.yaml and fill in your details.
+# Secrets may instead be supplied via environment variables (see below) so they
+# need not be written to disk.
+
+server:
+  # Address the HTTP server listens on.
+  addr: ":8080"
+  # Externally reachable base URL. Used to build the OIDC redirect URL and to
+  # decide whether session cookies get the Secure flag (https => secure).
+  base_url: "http://localhost:8080"
+  read_timeout: 15s
+  write_timeout: 30s
+
+database:
+  # SQLite file path. Created on first run; migrations apply automatically.
+  path: "data/netlog.sqlite"
+
+log:
+  # trace | debug | info | warn | error  (trace includes per-request HTTP logs)
+  level: "info"
+  # text | json
+  format: "text"
+
+data:
+  # Directory for cached datasets (the cty.xml DXCC file lives here).
+  dir: "data"
+
+oidc:
+  # Optional. When disabled, only username/password login is available.
+  enabled: false
+  issuer: "https://your-provider.example.com"
+  client_id: ""
+  client_secret: ""
+  # Defaults to <base_url>/api/auth/oidc/callback when blank.
+  redirect_url: ""
+  scopes: ["openid", "profile", "email"]
+
+callbook:
+  # Lookup priority: the first provider is primary, the rest are fallbacks.
+  order: ["qrz", "hamqth"]
+  http_timeout: 15s
+  # How often the cty.xml DXCC dataset is refreshed.
+  cty_refresh_days: 28
+
+  qrz:
+    username: ""
+    password: ""
+    agent: "NetLog/0.1"
+
+  hamqth:
+    username: ""
+    password: ""
+    program: "NetLog"
+
+# Environment variable overrides (take precedence over the file):
+#   NETLOG_DB_PATH, NETLOG_DATA_DIR, NETLOG_ADDR, NETLOG_BASE_URL,
+#   NETLOG_LOG_LEVEL, NETLOG_LOG_FORMAT,
+#   NETLOG_OIDC_ENABLED, NETLOG_OIDC_ISSUER, NETLOG_OIDC_CLIENT_ID, NETLOG_OIDC_CLIENT_SECRET,
+#   NETLOG_QRZ_USERNAME, NETLOG_QRZ_PASSWORD,
+#   NETLOG_HAMQTH_USERNAME, NETLOG_HAMQTH_PASSWORD
+#
+# If no config file is present at the path given to -config, NetLog starts from
+# its built-in defaults with only these environment variables applied. This is
+# the configuration-by-environment path used by the container image.
