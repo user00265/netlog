@@ -13,6 +13,17 @@
   let menuOpen = $state(false);
   let triggerEl = $state<HTMLButtonElement | null>(null);
   let firstItemEl = $state<HTMLButtonElement | null>(null);
+  let menuWrapEl = $state<HTMLDivElement | null>(null);
+
+  // Close on outside click while open.
+  $effect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuWrapEl && !menuWrapEl.contains(e.target as Node)) closeMenu();
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  });
 
   async function logout() {
     menuOpen = false;
@@ -87,7 +98,7 @@
       <ThemeToggle />
 
       {#if auth.user}
-        <div class="relative">
+        <div class="relative" bind:this={menuWrapEl}>
           <button
             bind:this={triggerEl}
             class="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium hover:bg-zinc-200 dark:hover:bg-zinc-800"
@@ -100,11 +111,6 @@
           </button>
 
           {#if menuOpen}
-            <button
-              class="fixed inset-0 z-10 cursor-default"
-              aria-label="Close menu"
-              onclick={closeMenu}
-            ></button>
             <div
               class="nl-card absolute right-0 z-20 mt-2 w-44 overflow-hidden p-1 text-sm shadow-lg"
               role="menu"
