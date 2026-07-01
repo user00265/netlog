@@ -58,6 +58,28 @@ export function dual(
   return `${utc} (${local})`;
 }
 
+// zuluWithDate renders "Jun 28, 2026 0148Z" — UTC date + compact HHMM time,
+// no local side, no colon in the time. Used in list views where the local
+// timezone adds noise and the compact zulu time is familiar to operators.
+export function zuluWithDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(d);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(d);
+  return `${date} ${time.replace(":", "")}Z`;
+}
+
 // zulu renders a compact UTC time stamp, e.g. "0130Z". Amateur-radio timestamps
 // are conventionally 24h Zulu, so this ignores the 12h preference and shows no
 // date or local time — used per check-in row.

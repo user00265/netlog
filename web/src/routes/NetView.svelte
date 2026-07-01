@@ -12,7 +12,7 @@
   } from "../lib/sync.svelte";
   import { link, navigate } from "../lib/router.svelte";
   import { formatDate, elapsed } from "../lib/format";
-  import { dual } from "../lib/datetime";
+  import { zuluWithDate } from "../lib/datetime";
   import Button from "../lib/components/Button.svelte";
   import StatusPill from "../lib/components/StatusPill.svelte";
   import CheckInForm from "../lib/components/CheckInForm.svelte";
@@ -263,7 +263,7 @@
           >
             Started
           </dt>
-          <dd class="nl-mono">{dual(net.startAt)}</dd>
+          <dd class="nl-mono">{zuluWithDate(net.startAt)}</dd>
         </div>
         <div>
           <dt
@@ -271,7 +271,7 @@
           >
             Ended
           </dt>
-          <dd class="nl-mono">{dual(net.endAt)}</dd>
+          <dd class="nl-mono">{zuluWithDate(net.endAt)}</dd>
         </div>
         <div>
           <dt

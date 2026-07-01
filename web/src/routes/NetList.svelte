@@ -5,7 +5,7 @@
   import { createNet, deleteNet } from "../lib/sync.svelte";
   import { navigate, link } from "../lib/router.svelte";
   import { formatDate, todayDate } from "../lib/format";
-  import { dual } from "../lib/datetime";
+  import { zuluWithDate } from "../lib/datetime";
   import type { Net } from "../lib/types";
   import Button from "../lib/components/Button.svelte";
   import StatusPill from "../lib/components/StatusPill.svelte";
@@ -170,7 +170,7 @@
                 </span>{counts.get(n.id) ?? 0}
               </div>
               <div class="nl-mono text-xs lg:text-center">
-                {dual(n.endAt)}
+                {zuluWithDate(n.endAt)}
               </div>
             </a>
             <div
