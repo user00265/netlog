@@ -4,6 +4,8 @@
   import { exportNetCSV, exportNetPDF } from "../export";
   import type { CallsignData } from "../types";
   import Button from "./Button.svelte";
+  import FileSpreadsheet from "@lucide/svelte/icons/file-spreadsheet";
+  import FileText from "@lucide/svelte/icons/file-text";
 
   let {
     netId,
@@ -65,19 +67,7 @@
         class="nl-card flex flex-col items-center gap-2 p-4 transition hover:border-zinc-400 dark:hover:border-zinc-600"
         onclick={csv}
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          class="h-7 w-7 text-emerald-600"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M14 3v5h5M8 13h8M8 17h8M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-          />
-        </svg>
+        <FileSpreadsheet class="h-7 w-7 text-emerald-600" strokeWidth={1.6} />
         <span class="text-sm font-semibold">CSV</span>
         <span class="text-xs text-zinc-500 dark:text-zinc-400">Spreadsheet</span
         >
@@ -86,19 +76,7 @@
         class="nl-card flex flex-col items-center gap-2 p-4 transition hover:border-zinc-400 dark:hover:border-zinc-600"
         onclick={pdf}
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          class="h-7 w-7 text-accent-600"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M14 3v5h5M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM9 13h1.5a1.5 1.5 0 0 1 0 3H9v-3zm0 0v5m4-5h2m-2 0v5m0-2.5h1.5"
-          />
-        </svg>
+        <FileText class="h-7 w-7 text-accent-600" strokeWidth={1.6} />
         <span class="text-sm font-semibold">PDF</span>
         <span class="text-xs text-zinc-500 dark:text-zinc-400">Print-ready</span
         >

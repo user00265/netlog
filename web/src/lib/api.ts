@@ -71,6 +71,14 @@ export interface ProfileInput {
   timeFormat: "24h" | "12h";
 }
 
+export interface AdminUserInput {
+  callsign: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: "admin" | "user";
+}
+
 export const api = {
   bootstrap: () => request<Bootstrap>("GET", "/api/bootstrap"),
   register: (input: AccountInput) =>
@@ -89,6 +97,8 @@ export const api = {
   listUsers: () => request<User[]>("GET", "/api/admin/users"),
   createUser: (input: AccountInput) =>
     request<User>("POST", "/api/admin/users", input),
+  updateUser: (id: string, input: AdminUserInput) =>
+    request<User>("PATCH", `/api/admin/users/${encodeURIComponent(id)}`, input),
 
   listNets: () => request<NetWithMeta[]>("GET", "/api/nets"),
   getNet: (id: string) =>
@@ -96,6 +106,10 @@ export const api = {
       "GET",
       `/api/nets/${id}`,
     ),
+  reassignNcs: (netId: string, callsign: string) =>
+    request<Net>("POST", `/api/nets/${encodeURIComponent(netId)}/ncs`, {
+      callsign,
+    }),
 
   getCallsign: (call: string) =>
     request<CallsignData>("GET", `/api/callsign/${encodeURIComponent(call)}`),

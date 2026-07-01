@@ -5,6 +5,7 @@ import { api, ApiError } from "./api";
 import { db, getLastSync, setLastSync } from "./db";
 import { newId } from "./id";
 import { normalizeCallsign } from "./callsign";
+import { auth } from "./stores/auth.svelte";
 import type { CheckIn, Net, SyncChange } from "./types";
 
 // syncState is reactive UI status for the footer indicators.
@@ -164,8 +165,6 @@ async function enqueue(
 export async function createNet(
   name: string,
   netDate: string,
-  ncsUserId: string,
-  ncsCallsign: string,
 ): Promise<string> {
   const id = newId();
   const ts = now();
@@ -173,18 +172,39 @@ export async function createNet(
     id,
     name,
     netDate,
-    ncsUserId,
+    // Unassigned until someone opens it (claims NCS). Anyone may open/clean an
+    // unassigned net, so it's manageable on create.
+    ncsUserId: "",
     status: "pending",
     startAt: null,
     endAt: null,
     notes: "",
     createdAt: ts,
     updatedAt: ts,
-    ncsCallsign,
+    ncsCallsign: "",
+    canManage: true,
   };
   await db.nets.put(net);
   await enqueue("net", "put", id, { name, netDate });
   return id;
+}
+
+// deleteNet soft-deletes a net (admins and any controller). Offline-capable: the
+// local row is removed optimistically and the tombstone syncs via the outbox.
+export async function deleteNet(net: Net): Promise<void> {
+  await db.nets.delete(net.id);
+  await enqueue("net", "delete", net.id, {});
+}
+
+// reassignNcs hands a net's NCS role to another operator by callsign. Online-only
+// (the server resolves the callsign to an account), so callers must gate it on
+// connectivity. The returned net carries the new NCS + controller access.
+export async function reassignNcs(
+  netId: string,
+  callsign: string,
+): Promise<void> {
+  const net = await api.reassignNcs(netId, normalizeCallsign(callsign));
+  await mergeNet(net);
 }
 
 // setNetNotes saves the NCS notes for a net (auto-save path).
@@ -200,6 +220,13 @@ export async function setNetStatus(
   const patch: Partial<Net> = { status, updatedAt: now() };
   if (status === "open" && !net.startAt) patch.startAt = now();
   if (status === "closed" && !net.endAt) patch.endAt = now();
+  // Opening an unassigned net claims NCS for the current operator. Apply it
+  // optimistically (the server does the same) so the NCS shows immediately.
+  if (status === "open" && !net.ncsUserId && auth.user) {
+    patch.ncsUserId = auth.user.id;
+    patch.ncsCallsign = auth.user.callsign;
+    patch.canManage = true;
+  }
   await db.nets.update(net.id, patch);
   await enqueue("net", "put", net.id, { status });
 }
@@ -312,6 +339,20 @@ async function reloadCallsign(call: string): Promise<void> {
 // when enrichment finishes.
 
 let eventSource: EventSource | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+// The browser only auto-reconnects an EventSource when an *established* stream
+// drops mid-flight. If the connection attempt itself gets an HTTP error — e.g. a
+// 502 from the reverse proxy while the backend is down/restarting — the
+// EventSource goes to CLOSED for good and never retries, leaving the app stuck
+// "offline" even after the backend returns. So we reconnect on a timer.
+function scheduleReconnect(delay = 3000): void {
+  if (reconnectTimer || !syncState.online) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    startEvents();
+  }, delay);
+}
 
 function startEvents(): void {
   if (eventSource || typeof EventSource === "undefined") return;
@@ -324,8 +365,14 @@ function startEvents(): void {
     void syncDown();
   };
   es.onerror = () => {
-    // The connection dropped; EventSource will auto-reconnect.
     syncState.reachable = false;
+    // CONNECTING means the browser is already retrying a dropped stream; CLOSED
+    // means it gave up (an HTTP-error response, e.g. a 502 while the backend was
+    // down), so we must tear it down and reconnect ourselves.
+    if (es.readyState === EventSource.CLOSED) {
+      stopEvents();
+      scheduleReconnect();
+    }
   };
   es.addEventListener("sync", () => void syncDown());
   es.addEventListener(
@@ -335,6 +382,10 @@ function startEvents(): void {
 }
 
 function stopEvents(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (eventSource) {
     eventSource.close();
     eventSource = null;
@@ -357,6 +408,7 @@ export async function startSync(): Promise<void> {
     listenersBound = true;
     window.addEventListener("online", () => {
       syncState.online = true;
+      startEvents(); // revive the SSE stream if it was torn down while offline
       void flushOutbox();
       void syncDown();
     });

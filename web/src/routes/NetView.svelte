@@ -1,10 +1,16 @@
 <script lang="ts">
   import { liveQuery } from "dexie";
   import { db } from "../lib/db";
-  import { api } from "../lib/api";
+  import { api, ApiError } from "../lib/api";
   import { auth } from "../lib/stores/auth.svelte";
-  import { setNetStatus, loadCallsign } from "../lib/sync.svelte";
-  import { link } from "../lib/router.svelte";
+  import {
+    setNetStatus,
+    loadCallsign,
+    deleteNet,
+    reassignNcs,
+    syncState,
+  } from "../lib/sync.svelte";
+  import { link, navigate } from "../lib/router.svelte";
   import { formatDate, elapsed } from "../lib/format";
   import { dual } from "../lib/datetime";
   import Button from "../lib/components/Button.svelte";
@@ -12,6 +18,10 @@
   import CheckInForm from "../lib/components/CheckInForm.svelte";
   import CheckInRow from "../lib/components/CheckInRow.svelte";
   import NetNotes from "../lib/components/NetNotes.svelte";
+  import ExportModal from "../lib/components/ExportModal.svelte";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import Upload from "@lucide/svelte/icons/upload";
 
   let { id }: { id: string } = $props();
 
@@ -27,10 +37,51 @@
     new Map(($callsignsQ ?? []).map((c) => [c.callsign, c])),
   );
 
+  // The server stamps canManage per requester (admin, controller, or anyone
+  // while the net is still unassigned). Fall back to that same logic for a
+  // locally-created net not yet synced.
   const canManage = $derived(
-    !!net && !!auth.user && (auth.isAdmin || auth.user.id === net.ncsUserId),
+    !!net &&
+      (net.canManage ??
+        (!net.ncsUserId ||
+          (!!auth.user && (auth.isAdmin || auth.user.id === net.ncsUserId)))),
   );
   const editable = $derived(!!net && net.status === "open" && canManage);
+
+  // Hand-off resolves a callsign to an account on the server, so it needs a live
+  // connection; the UI disables it while offline.
+  const connected = $derived(syncState.online && syncState.reachable);
+
+  // NCS hand-off + delete UI state.
+  let reassigning = $state(false);
+  let reassignCall = $state("");
+  let reassignErr = $state("");
+  let reassignBusy = $state(false);
+  let confirmDelete = $state(false);
+  let showExport = $state(false);
+
+  async function doReassign(e: SubmitEvent) {
+    e.preventDefault();
+    if (!net || !reassignCall.trim()) return;
+    reassignBusy = true;
+    reassignErr = "";
+    try {
+      await reassignNcs(net.id, reassignCall);
+      reassigning = false;
+      reassignCall = "";
+    } catch (err) {
+      reassignErr =
+        err instanceof ApiError ? err.message : "Could not reassign NCS.";
+    } finally {
+      reassignBusy = false;
+    }
+  }
+
+  async function doDelete() {
+    if (!net) return;
+    await deleteNet(net);
+    navigate("/");
+  }
 
   // A 30s tick keeps the running-duration label fresh while a net is live.
   let tick = $state(0);
@@ -95,23 +146,111 @@
             <h1 class="text-xl font-bold">{net.name}</h1>
             <StatusPill status={net.status} />
           </div>
-          <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {formatDate(net.netDate)} · NCS
+          <p
+            class="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400"
+          >
+            <span>{formatDate(net.netDate)} · NCS</span>
             <span class="nl-call">{net.ncsCallsign || "—"}</span>
+            {#if canManage && net.ncsUserId && net.status !== "closed"}
+              <button
+                class="nl-icon-btn h-7 w-7 disabled:cursor-not-allowed disabled:opacity-40"
+                onclick={() => (reassigning = !reassigning)}
+                disabled={!connected}
+                title={connected
+                  ? "Reassign NCS"
+                  : "Reassign NCS needs a connection"}
+                aria-label="Reassign NCS"
+              >
+                <Pencil class="h-3.5 w-3.5" />
+              </button>
+            {/if}
           </p>
+
+          {#if reassigning}
+            <form
+              onsubmit={doReassign}
+              class="mt-3 flex flex-wrap items-end gap-2"
+            >
+              <div>
+                <label class="nl-label" for="reassign-call"
+                  >Hand off to callsign</label
+                >
+                <input
+                  id="reassign-call"
+                  bind:value={reassignCall}
+                  class="nl-input w-40 font-mono uppercase"
+                  autocapitalize="characters"
+                  placeholder="W1AW"
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="blue"
+                size="sm"
+                disabled={reassignBusy || !connected}
+              >
+                {reassignBusy ? "Reassigning…" : "Reassign"}
+              </Button>
+              <Button
+                variant="gray"
+                size="sm"
+                onclick={() => (reassigning = false)}>Cancel</Button
+              >
+            </form>
+            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              The new operator becomes NCS; you keep access.
+            </p>
+            {#if reassignErr}
+              <p class="mt-1 text-sm text-accent-600 dark:text-accent-500">
+                {reassignErr}
+              </p>
+            {/if}
+          {/if}
         </div>
 
-        {#if canManage}
-          <div class="flex gap-2">
-            {#if net.status === "pending"}
+        {#if canManage || net.status === "closed"}
+          <div class="flex items-center gap-2">
+            {#if canManage && net.status === "pending"}
               <Button variant="green" onclick={() => setNetStatus(net, "open")}
                 >Open net</Button
               >
-            {:else if net.status === "open"}
+            {:else if canManage && net.status === "open"}
               <Button
                 variant="yellow"
                 onclick={() => setNetStatus(net, "closed")}>Close net</Button
               >
+            {/if}
+            {#if net.status === "closed"}
+              <button
+                class="nl-icon-btn"
+                onclick={() => (showExport = true)}
+                title="Export net"
+                aria-label="Export net"
+              >
+                <Upload class="h-4 w-4" />
+              </button>
+            {/if}
+            {#if canManage}
+              {#if confirmDelete}
+                <Button variant="primary" size="sm" onclick={doDelete}
+                  >Delete</Button
+                >
+                <Button
+                  variant="gray"
+                  size="sm"
+                  onclick={() => (confirmDelete = false)}>Cancel</Button
+                >
+              {:else}
+                <button
+                  class="nl-icon-btn text-accent-600/70 hover:bg-accent-500/10 hover:text-accent-600 dark:text-accent-500/70 dark:hover:text-accent-500"
+                  onclick={() => (confirmDelete = true)}
+                  title="Delete net"
+                  aria-label="Delete net"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
+              {/if}
             {/if}
           </div>
         {/if}
@@ -201,6 +340,7 @@
                   checkin={c}
                   callbook={callsignMap.get(c.callsign)}
                   {editable}
+                  {canManage}
                 />
               {/each}
             </ul>
@@ -209,4 +349,12 @@
       </div>
     </div>
   </div>
+
+  {#if showExport}
+    <ExportModal
+      netId={net.id}
+      netName={net.name}
+      onClose={() => (showExport = false)}
+    />
+  {/if}
 {/if}

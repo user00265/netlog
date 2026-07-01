@@ -24,9 +24,23 @@ func (s *Server) spaHandler() http.Handler {
 				info, statErr := f.Stat()
 				_ = f.Close()
 				if statErr == nil && !info.IsDir() {
-					// Long-cache hashed build assets; index.html is served fresh.
+					// Content-hashed build assets are immutable and cache forever;
+					// every other file (index.html, sw.js, manifest, icons) must be
+					// revalidated so a new deploy is picked up. sw.js especially:
+					// without no-cache a proxy (e.g. Cloudflare) caches it by its
+					// .js extension and the PWA never sees the update — leaving the
+					// app stuck on the old bundle until a manual cache purge.
 					if strings.HasPrefix(clean, "assets/") {
 						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					} else {
+						w.Header().Set("Cache-Control", "no-cache")
+					}
+					// Go's MIME table has no .webmanifest entry, so the file server
+					// would mis-sniff it; set the correct type so browsers accept the
+					// PWA manifest. (sw.js is fine: .js → text/javascript, a valid
+					// service-worker MIME type.)
+					if strings.HasSuffix(clean, ".webmanifest") {
+						w.Header().Set("Content-Type", "application/manifest+json")
 					}
 					fileServer.ServeHTTP(w, r)
 					return

@@ -30,7 +30,7 @@ function parts(withDate: boolean): Intl.DateTimeFormatOptions {
   if (withDate) {
     base.year = "numeric";
     base.month = "short";
-    base.day = "2-digit";
+    base.day = "numeric";
   }
   return base;
 }
@@ -58,7 +58,18 @@ export function dual(
   return `${utc} (${local})`;
 }
 
-// dualTime is the time-only variant (e.g. per check-in rows).
-export function dualTime(iso: string | null | undefined): string {
-  return dual(iso, false, false);
+// zulu renders a compact UTC time stamp, e.g. "0130Z". Amateur-radio timestamps
+// are conventionally 24h Zulu, so this ignores the 12h preference and shows no
+// date or local time — used per check-in row.
+export function zulu(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }).format(d); // "01:30"
+  return `${time.replace(":", "")}Z`;
 }

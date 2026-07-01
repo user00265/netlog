@@ -19,7 +19,8 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 			since = ""
 		}
 	}
-	resp, err := s.sync.Pull(r.Context(), since)
+	user, _ := auth.UserFrom(r.Context())
+	resp, err := s.sync.Pull(r.Context(), user, since)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, "sync pull failed")
 		return

@@ -22,6 +22,10 @@ var (
 	// ErrInvalidCredentials is returned for any failed login (no user
 	// enumeration).
 	ErrInvalidCredentials = errors.New("invalid callsign or password")
+	// ErrLastAdmin is returned when an edit would leave the system with no admin
+	// (demoting the only remaining admin), which would lock everyone out of
+	// account and net administration.
+	ErrLastAdmin = errors.New("cannot demote the last remaining admin")
 )
 
 // AccountInput is the data collected when creating an account.
@@ -193,6 +197,74 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, in ProfileIn
 	}
 	u.UpdatedAt = models.Now()
 	if err := s.store.UpdateProfile(ctx, u); err != nil {
+		return models.User{}, err
+	}
+	return u, nil
+}
+
+// AdminUserInput is the data an admin may change on another account: identity
+// fields plus role. Display preferences and password are not touched here.
+type AdminUserInput struct {
+	Callsign  string `json:"callsign" validate:"required"`
+	FirstName string `json:"firstName" validate:"required,max=80"`
+	LastName  string `json:"lastName" validate:"required,max=80"`
+	Email     string `json:"email" validate:"required,email,max=254"`
+	Role      string `json:"role" validate:"required,oneof=admin user"`
+}
+
+// AdminUpdateUser updates targetID's identity + role on behalf of an admin. It
+// enforces callsign validity/uniqueness, email uniqueness, and refuses to demote
+// the final admin (ErrLastAdmin). Authorization (admin-only) is the caller's job.
+func (s *Service) AdminUpdateUser(ctx context.Context, targetID string, in AdminUserInput) (models.User, error) {
+	in.Callsign = validate.NormalizeCallsign(in.Callsign)
+	in.FirstName = strings.TrimSpace(in.FirstName)
+	in.LastName = strings.TrimSpace(in.LastName)
+	in.Email = strings.TrimSpace(in.Email)
+	if err := validate.Struct(&in); err != nil {
+		return models.User{}, err
+	}
+	if !validate.ValidCallsign(in.Callsign) {
+		return models.User{}, errors.New("invalid callsign")
+	}
+
+	u, err := s.store.GetUserByID(ctx, targetID)
+	if err != nil {
+		return models.User{}, err
+	}
+
+	// Guard against locking everyone out: don't demote the last admin.
+	if u.IsAdmin() && in.Role != models.RoleAdmin {
+		admins, err := s.store.CountAdmins(ctx)
+		if err != nil {
+			return models.User{}, err
+		}
+		if admins <= 1 {
+			return models.User{}, ErrLastAdmin
+		}
+	}
+
+	if in.Callsign != u.Callsign {
+		if other, err := s.store.GetUserByCallsign(ctx, in.Callsign); err == nil && other.ID != targetID {
+			return models.User{}, ErrCallsignTaken
+		} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return models.User{}, err
+		}
+	}
+	if !strings.EqualFold(in.Email, u.Email) {
+		if other, err := s.store.GetUserByEmail(ctx, in.Email); err == nil && other.ID != targetID {
+			return models.User{}, ErrEmailTaken
+		} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return models.User{}, err
+		}
+	}
+
+	u.Callsign = in.Callsign
+	u.FirstName = in.FirstName
+	u.LastName = in.LastName
+	u.Email = in.Email
+	u.Role = in.Role
+	u.UpdatedAt = models.Now()
+	if err := s.store.UpdateUserAdmin(ctx, u); err != nil {
 		return models.User{}, err
 	}
 	return u, nil

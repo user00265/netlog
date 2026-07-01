@@ -3,9 +3,11 @@
   import { link, navigate, router } from "../router.svelte";
   import { syncState } from "../sync.svelte";
   import ThemeToggle from "./ThemeToggle.svelte";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
 
   // Account management requires the live backend (we never store credentials or
-  // the user list offline), so the Accounts link only shows when connected.
+  // the user list offline). The Accounts link stays visible to admins but is
+  // disabled while offline rather than hidden.
   const connected = $derived(syncState.online && syncState.reachable);
 
   let menuOpen = $state(false);
@@ -68,8 +70,16 @@
 
     <nav class="flex items-center gap-3 text-sm font-medium sm:gap-4">
       <a href="/" use:link class={navClass(onNets)}>Nets</a>
-      {#if auth.isAdmin && connected}
-        <a href="/admin" use:link class={navClass(onAdmin)}>Accounts</a>
+      {#if auth.isAdmin}
+        {#if connected}
+          <a href="/admin" use:link class={navClass(onAdmin)}>Accounts</a>
+        {:else}
+          <span
+            class="cursor-not-allowed text-zinc-300 dark:text-zinc-600"
+            title="Account management needs a connection"
+            aria-disabled="true">Accounts</span
+          >
+        {/if}
       {/if}
     </nav>
 
@@ -86,15 +96,7 @@
             onclick={() => (menuOpen = !menuOpen)}
           >
             <span class="nl-call">{auth.user.callsign}</span>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              class="h-4 w-4"
-            >
-              <path stroke-linecap="round" d="m6 9 6 6 6-6" />
-            </svg>
+            <ChevronDown class="h-4 w-4" />
           </button>
 
           {#if menuOpen}

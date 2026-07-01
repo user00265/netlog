@@ -51,6 +51,17 @@
       clearForm();
     }
   }
+
+  // Enter on a toggle pill saves the check-in (matching the text fields) instead
+  // of flipping the pill, so the operator can tab callsign → name → traffic →
+  // short → Save and commit with Enter at any stop. Space still toggles the pill
+  // via the native button activation.
+  function onTogglePillKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      (e.currentTarget as HTMLButtonElement).form?.requestSubmit();
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -98,6 +109,7 @@
       class={`nl-tag cursor-pointer px-2.5 py-1 ${hasTraffic ? "nl-tag-blue ring-1 ring-blue-500/60" : "border border-zinc-300 text-zinc-600 dark:border-zinc-600 dark:text-zinc-300"}`}
       aria-pressed={hasTraffic}
       onclick={() => (hasTraffic = !hasTraffic)}
+      onkeydown={onTogglePillKeydown}
     >
       Has traffic
     </button>
@@ -106,6 +118,7 @@
       class={`nl-tag cursor-pointer px-2.5 py-1 ${shortTime ? "nl-tag-amber ring-1 ring-amber-500/60" : "border border-zinc-300 text-zinc-600 dark:border-zinc-600 dark:text-zinc-300"}`}
       aria-pressed={shortTime}
       onclick={() => (shortTime = !shortTime)}
+      onkeydown={onTogglePillKeydown}
     >
       Short-time
     </button>

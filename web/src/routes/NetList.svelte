@@ -2,7 +2,7 @@
   import { liveQuery } from "dexie";
   import { db } from "../lib/db";
   import { auth } from "../lib/stores/auth.svelte";
-  import { createNet } from "../lib/sync.svelte";
+  import { createNet, deleteNet } from "../lib/sync.svelte";
   import { navigate, link } from "../lib/router.svelte";
   import { formatDate, todayDate } from "../lib/format";
   import { dual } from "../lib/datetime";
@@ -10,8 +10,16 @@
   import Button from "../lib/components/Button.svelte";
   import StatusPill from "../lib/components/StatusPill.svelte";
   import ExportModal from "../lib/components/ExportModal.svelte";
+  import Upload from "@lucide/svelte/icons/upload";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
 
   let exportNet = $state<{ id: string; name: string } | null>(null);
+  let confirmDeleteId = $state<string | null>(null);
+
+  async function doDelete(n: Net) {
+    confirmDeleteId = null;
+    await deleteNet(n);
+  }
 
   const netsQ = liveQuery(() => db.nets.toArray());
   const checkinsQ = liveQuery(() => db.checkins.toArray());
@@ -49,12 +57,7 @@
     creating = true;
     error = "";
     try {
-      const id = await createNet(
-        name.trim(),
-        netDate,
-        auth.user.id,
-        auth.user.callsign,
-      );
+      const id = await createNet(name.trim(), netDate);
       navigate(`/nets/${id}`);
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not create the net.";
@@ -130,13 +133,13 @@
         class="hidden border-b border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 lg:flex dark:border-zinc-800 dark:text-zinc-400"
       >
         <div class="grid flex-1 grid-cols-[1fr_7rem_6rem_4rem_13rem] gap-3">
-          <span>Net / NCS</span>
-          <span>Date</span>
-          <span>Status</span>
-          <span class="text-right">Check-ins</span>
-          <span class="text-right">Ended</span>
+          <span class="text-center">Net / NCS</span>
+          <span class="text-center">Date</span>
+          <span class="text-center">Status</span>
+          <span class="text-center">C/I</span>
+          <span class="text-center">Ended</span>
         </div>
-        <span class="w-9"></span>
+        <span class="w-24"></span>
       </div>
 
       <ul class="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -147,51 +150,68 @@
               use:link
               class="grid min-w-0 flex-1 grid-cols-1 gap-1 px-4 py-3 transition hover:bg-zinc-50 lg:grid-cols-[1fr_7rem_6rem_4rem_13rem] lg:items-center lg:gap-3 dark:hover:bg-zinc-800/50"
             >
-              <div class="min-w-0">
+              <div class="min-w-0 lg:text-center">
                 <div class="truncate font-semibold">{n.name}</div>
                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
                   NCS <span class="nl-call">{n.ncsCallsign || "—"}</span>
                 </div>
               </div>
               <div
-                class="text-sm text-zinc-500 dark:text-zinc-400 lg:text-zinc-700 lg:dark:text-zinc-300"
+                class="text-sm text-zinc-500 lg:text-center lg:text-zinc-700 dark:text-zinc-400 lg:dark:text-zinc-300"
               >
                 {formatDate(n.netDate)}
               </div>
-              <div><StatusPill status={n.status} /></div>
+              <div class="lg:text-center"><StatusPill status={n.status} /></div>
               <div
-                class="text-sm tabular-nums text-zinc-600 lg:text-right dark:text-zinc-300"
+                class="text-sm tabular-nums text-zinc-600 lg:text-center dark:text-zinc-300"
               >
                 <span class="text-zinc-500 lg:hidden dark:text-zinc-400"
-                  >Check-ins:
+                  >C/I:
                 </span>{counts.get(n.id) ?? 0}
               </div>
-              <div class="nl-mono text-xs lg:text-right">
+              <div class="nl-mono text-xs lg:text-center">
                 {dual(n.endAt)}
               </div>
             </a>
-            <div class="flex w-9 items-center justify-center pr-1">
-              {#if n.status === "closed"}
-                <button
-                  class="nl-icon-btn"
-                  title="Export net"
-                  aria-label="Export net"
-                  onclick={() => (exportNet = { id: n.id, name: n.name })}
+            <div
+              class="flex min-w-24 shrink-0 items-center justify-center gap-1 px-2"
+            >
+              {#if confirmDeleteId === n.id}
+                <Button variant="primary" size="sm" onclick={() => doDelete(n)}
+                  >Delete</Button
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    class="h-4 w-4"
+                <Button
+                  variant="gray"
+                  size="sm"
+                  onclick={() => (confirmDeleteId = null)}>Cancel</Button
+                >
+              {:else}
+                <!-- Fixed slots: an empty spacer stands in for a missing export
+                     or delete so both icons keep the same column across rows. -->
+                {#if n.status === "closed"}
+                  <button
+                    class="nl-icon-btn"
+                    title="Export net"
+                    aria-label="Export net"
+                    onclick={() => (exportNet = { id: n.id, name: n.name })}
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M12 3v12m0-12 4 4m-4-4-4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
-                    />
-                  </svg>
-                </button>
+                    <Upload class="h-4 w-4" />
+                  </button>
+                {:else}
+                  <span class="h-9 w-9 shrink-0" aria-hidden="true"></span>
+                {/if}
+                {#if n.canManage}
+                  <button
+                    class="nl-icon-btn text-accent-600/70 hover:bg-accent-500/10 hover:text-accent-600 dark:text-accent-500/70 dark:hover:text-accent-500"
+                    title="Delete net"
+                    aria-label="Delete net"
+                    onclick={() => (confirmDeleteId = n.id)}
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                {:else}
+                  <span class="h-9 w-9 shrink-0" aria-hidden="true"></span>
+                {/if}
               {/if}
             </div>
           </li>

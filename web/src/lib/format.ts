@@ -8,7 +8,7 @@ export function formatDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
-    day: "2-digit",
+    day: "numeric",
   });
 }
 

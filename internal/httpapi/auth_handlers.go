@@ -6,6 +6,7 @@ import (
 
 	"netlog/internal/auth"
 	"netlog/internal/config"
+	"netlog/internal/store"
 	"netlog/internal/validate"
 )
 
@@ -119,6 +120,36 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, http.StatusCreated, user)
+}
+
+// handleUpdateUser edits an account's identity + role (admin only).
+func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validate.ValidID(id) {
+		s.writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var in auth.AdminUserInput
+	if !s.decodeJSON(w, r, &in) {
+		return
+	}
+	user, err := s.auth.AdminUpdateUser(r.Context(), id, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			s.writeError(w, http.StatusNotFound, "user not found")
+		case errors.Is(err, auth.ErrCallsignTaken):
+			s.writeError(w, http.StatusConflict, "callsign already registered")
+		case errors.Is(err, auth.ErrEmailTaken):
+			s.writeError(w, http.StatusConflict, "email already in use")
+		case errors.Is(err, auth.ErrLastAdmin):
+			s.writeError(w, http.StatusConflict, "cannot demote the last remaining admin")
+		default:
+			s.writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	s.writeJSON(w, http.StatusOK, user)
 }
 
 // validCallsignParam normalizes and validates a {call} path value.

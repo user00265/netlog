@@ -105,9 +105,10 @@ func (s *Service) notify(event, data string) {
 	}
 }
 
-// Pull returns all records changed strictly after since.
-func (s *Service) Pull(ctx context.Context, since string) (PullResponse, error) {
-	nets, err := s.store.ChangedNetsSince(ctx, since)
+// Pull returns all records changed strictly after since. canManage on each net
+// is computed for the requesting user.
+func (s *Service) Pull(ctx context.Context, user models.User, since string) (PullResponse, error) {
+	nets, err := s.store.ChangedNetsSince(ctx, since, user.ID, user.IsAdmin())
 	if err != nil {
 		return PullResponse{}, err
 	}
@@ -163,9 +164,25 @@ func failed(ch Change, msg string) Result {
 	return Result{ID: ch.ID, Entity: ch.Entity, Status: StatusError, Message: msg}
 }
 
-// canManageNet reports whether the user may mutate the net (its NCS or an admin).
-func canManageNet(user models.User, n models.Net) bool {
-	return user.IsAdmin() || user.ID == n.NCSUserID
+// canManageNet reports whether the user may mutate the net: an admin, any
+// operator while the net is still unassigned (no NCS yet — so anyone can open
+// or clean it up), or a member of its controller set once claimed (the current
+// NCS plus everyone it has been handed off to or from). On a lookup error it
+// denies, logging the cause.
+func (s *Service) canManageNet(ctx context.Context, user models.User, n models.Net) bool {
+	if user.IsAdmin() {
+		return true
+	}
+	if n.NCSUserID == "" {
+		return true // unassigned net: any operator may claim/manage it
+	}
+	ok, err := s.store.IsNetController(ctx, n.ID, user.ID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "net controller check failed",
+			slog.String("net", n.ID), slog.String("user", user.ID), slog.String("error", err.Error()))
+		return false
+	}
+	return ok
 }
 
 // netPatch is a partial net update. Pointer fields distinguish "absent" from a
@@ -198,7 +215,7 @@ func (s *Service) applyNet(ctx context.Context, user models.User, ch Change) Res
 		return failed(ch, "lookup net")
 	}
 
-	if !canManageNet(user, existing) {
+	if !s.canManageNet(ctx, user, existing) {
 		return conflict(ch, "not authorized for this net")
 	}
 	if existing.Status == models.NetClosed && ch.Op != OpDelete {
@@ -211,6 +228,7 @@ func (s *Service) applyNet(ctx context.Context, user models.User, ch Change) Res
 		if err := s.store.UpdateNet(ctx, existing); err != nil {
 			return failed(ch, "delete net")
 		}
+		existing.CanManage = true
 		return Result{ID: ch.ID, Entity: ch.Entity, Status: StatusApplied, Net: &existing}
 	}
 
@@ -231,6 +249,7 @@ func (s *Service) applyNet(ctx context.Context, user models.User, ch Change) Res
 	if p.Notes != nil {
 		existing.Notes = validate.CleanMultiline(*p.Notes, maxNetNotes)
 	}
+	wasStatus := existing.Status
 	if msg := applyNetTransition(&existing, derefStatus(p.Status), now); msg != "" {
 		return conflict(ch, msg)
 	}
@@ -238,6 +257,18 @@ func (s *Service) applyNet(ctx context.Context, user models.User, ch Change) Res
 	if err := s.store.UpdateNet(ctx, existing); err != nil {
 		return failed(ch, "update net")
 	}
+	// Opening an unassigned net claims NCS for the opener (and makes them its
+	// first controller). Subsequent controllers come via hand-off.
+	if existing.Status == models.NetOpen && wasStatus != models.NetOpen && existing.NCSUserID == "" {
+		if err := s.store.SetNetNCS(ctx, existing.ID, user.ID, now); err != nil {
+			return failed(ch, "assign ncs")
+		}
+		if err := s.store.AddNetController(ctx, existing.ID, user.ID, now); err != nil {
+			return failed(ch, "assign ncs")
+		}
+		existing.NCSUserID = user.ID
+	}
+	existing.CanManage = true
 	return Result{ID: ch.ID, Entity: ch.Entity, Status: StatusApplied, Net: &existing}
 }
 
@@ -263,10 +294,11 @@ func (s *Service) createNet(ctx context.Context, user models.User, ch Change, p 
 		return failed(ch, "invalid net date")
 	}
 	n := models.Net{
-		ID:        ch.ID,
-		Name:      name,
-		NetDate:   netDate,
-		NCSUserID: user.ID,
+		ID:      ch.ID,
+		Name:    name,
+		NetDate: netDate,
+		// Unassigned: a net has no NCS until someone opens it (claims control).
+		NCSUserID: "",
 		Status:    models.NetPending,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -274,13 +306,22 @@ func (s *Service) createNet(ctx context.Context, user models.User, ch Change, p 
 	if p.Notes != nil {
 		n.Notes = validate.CleanMultiline(*p.Notes, maxNetNotes)
 	}
-	// Allow opening as part of creation.
+	// A net may be opened as part of creation; opening claims NCS for the opener.
 	if msg := applyNetTransition(&n, derefStatus(p.Status), now); msg != "" {
 		return conflict(ch, msg)
+	}
+	if n.Status == models.NetOpen {
+		n.NCSUserID = user.ID
 	}
 	if err := s.store.CreateNet(ctx, n); err != nil {
 		return failed(ch, "create net")
 	}
+	if n.NCSUserID != "" {
+		if err := s.store.AddNetController(ctx, n.ID, n.NCSUserID, now); err != nil {
+			return failed(ch, "create net")
+		}
+	}
+	n.CanManage = true
 	return Result{ID: ch.ID, Entity: ch.Entity, Status: StatusApplied, Net: &n}
 }
 
@@ -341,7 +382,7 @@ func (s *Service) applyCheckin(ctx context.Context, user models.User, ch Change)
 	} else if err != nil {
 		return failed(ch, "lookup net")
 	}
-	if !canManageNet(user, net) {
+	if !s.canManageNet(ctx, user, net) {
 		return conflict(ch, "not authorized for this net")
 	}
 

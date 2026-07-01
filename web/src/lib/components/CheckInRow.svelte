@@ -1,16 +1,27 @@
 <script lang="ts">
   import type { CheckIn, CallsignData } from "../types";
   import { editCheckIn, removeCheckIn, refreshCallsign } from "../sync.svelte";
-  import { dualTime } from "../datetime";
+  import { zulu } from "../datetime";
   import Flag from "./Flag.svelte";
   import Button from "./Button.svelte";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Pencil from "@lucide/svelte/icons/pencil";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
 
   let {
     checkin,
     callbook,
     editable,
-  }: { checkin: CheckIn; callbook?: CallsignData; editable: boolean } =
-    $props();
+    canManage = false,
+  }: {
+    checkin: CheckIn;
+    callbook?: CallsignData;
+    // editable: net is open AND the user controls it — gates field edits.
+    editable: boolean;
+    // canManage: the user controls the net (admin/controller) — gates removal,
+    // which (unlike editing) is allowed even after the net is closed.
+    canManage?: boolean;
+  } = $props();
 
   let editing = $state(false);
   let confirmDelete = $state(false);
@@ -45,6 +56,15 @@
     if (e.key === "Escape") {
       e.preventDefault();
       editing = false; // Esc cancels the edit
+    }
+  }
+
+  // Enter on a toggle pill saves the edit (matching the text fields) instead of
+  // flipping the pill; Space still toggles it via the native button activation.
+  function onTogglePillKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      (e.currentTarget as HTMLButtonElement).form?.requestSubmit();
     }
   }
 
@@ -105,12 +125,14 @@
           type="button"
           class={`nl-tag px-2 py-1 ${toggleClass(eTraffic, "blue")}`}
           aria-pressed={eTraffic}
+          onkeydown={onTogglePillKeydown}
           onclick={() => (eTraffic = !eTraffic)}>Traffic</button
         >
         <button
           type="button"
           class={`nl-tag px-2 py-1 ${toggleClass(eShort, "amber")}`}
           aria-pressed={eShort}
+          onkeydown={onTogglePillKeydown}
           onclick={() => (eShort = !eShort)}>Short</button
         >
         <!-- Refresh callbook data lives here in edit mode, left of Save. -->
@@ -122,18 +144,7 @@
           title="Refresh callbook data"
           aria-label="Refresh callbook data"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            class={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-          >
-            <path
-              stroke-linecap="round"
-              d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"
-            />
-          </svg>
+          <RefreshCw class={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
         </button>
         <Button variant="green" size="sm" type="submit">Save</Button>
         <Button variant="gray" size="sm" onclick={() => (editing = false)}
@@ -150,20 +161,25 @@
             >{checkin.nickname}</span
           >
         {/if}
-        {#if checkin.hasTraffic}<span class="nl-tag nl-tag-blue">Traffic</span
+        {#if checkin.hasTraffic}<span class="nl-tag nl-tag-blue" title="Traffic"
+            >T</span
           >{/if}
-        {#if checkin.shortTime}<span class="nl-tag nl-tag-amber">Short</span
+        {#if checkin.shortTime}<span
+            class="nl-tag nl-tag-amber"
+            title="Short-time">S</span
           >{/if}
       </div>
-      {#if name}
-        <div class="truncate text-xs text-zinc-500 dark:text-zinc-400">
-          {name}
-        </div>
-      {/if}
+      <!-- Callbook name and check-in time share the second line: name on the
+           left, time on the right — freeing the first line's full width for the
+           callsign, nickname and tags. -->
+      <div class="flex items-center gap-2 text-xs">
+        {#if name}
+          <span class="truncate text-zinc-500 dark:text-zinc-400">{name}</span>
+        {/if}
+        <span class="nl-mono ml-auto shrink-0">{zulu(checkin.checkedInAt)}</span
+        >
+      </div>
     </div>
-
-    <span class="nl-mono shrink-0 text-xs">{dualTime(checkin.checkedInAt)}</span
-    >
 
     {#if confirmDelete}
       <div class="flex shrink-0 items-center gap-1">
@@ -176,47 +192,27 @@
           >Cancel</Button
         >
       </div>
-    {:else if editable}
-      <button
-        class="nl-icon-btn"
-        onclick={startEdit}
-        title="Edit"
-        aria-label="Edit check-in"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          class="h-4 w-4"
+    {:else}
+      {#if canManage}
+        <button
+          class="nl-icon-btn text-accent-600/70 hover:bg-accent-500/10 hover:text-accent-600 dark:text-accent-500/70 dark:hover:text-accent-500"
+          onclick={() => (confirmDelete = true)}
+          title="Remove"
+          aria-label="Remove check-in"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
-          />
-        </svg>
-      </button>
-      <button
-        class="nl-icon-btn text-accent-600/70 hover:bg-accent-500/10 hover:text-accent-600 dark:text-accent-500/70 dark:hover:text-accent-500"
-        onclick={() => (confirmDelete = true)}
-        title="Remove"
-        aria-label="Remove check-in"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          class="h-4 w-4"
+          <Trash2 class="h-4 w-4" />
+        </button>
+      {/if}
+      {#if editable}
+        <button
+          class="nl-icon-btn"
+          onclick={startEdit}
+          title="Edit"
+          aria-label="Edit check-in"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"
-          />
-        </svg>
-      </button>
+          <Pencil class="h-4 w-4" />
+        </button>
+      {/if}
     {/if}
   {/if}
 </li>

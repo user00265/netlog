@@ -68,6 +68,11 @@ type Net struct {
 	// NCSCallsign is a denormalized, non-persisted convenience field populated on
 	// reads/sync so clients can display the NCS without a separate user lookup.
 	NCSCallsign string `json:"ncsCallsign,omitempty"`
+	// CanManage is a transient, per-requester flag (not stored) telling the SPA
+	// whether the current user may edit this net — i.e. an admin or a member of
+	// the net's controller set. It rides the read/sync payload so the UI can gate
+	// controls offline from its last pull.
+	CanManage bool `json:"canManage"`
 }
 
 // NetWithMeta is a net plus the count of (non-deleted) check-ins for list views.

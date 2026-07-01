@@ -60,6 +60,30 @@ func (s *Store) UpdateProfile(ctx context.Context, u models.User) error {
 	return nil
 }
 
+// UpdateUserAdmin updates an account's identity fields and role (admin action).
+// Display preferences (timezone/time_format) and password are left untouched.
+func (s *Store) UpdateUserAdmin(ctx context.Context, u models.User) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET callsign = ?, first_name = ?, last_name = ?, email = ?, role = ?,
+		 updated_at = ? WHERE id = ?`,
+		u.Callsign, u.FirstName, u.LastName, u.Email, u.Role, u.UpdatedAt, u.ID)
+	if err != nil {
+		return fmt.Errorf("update user (admin): %w", err)
+	}
+	return nil
+}
+
+// CountAdmins returns the number of accounts with the admin role, used to guard
+// against demoting the last admin into a lockout.
+func (s *Store) CountAdmins(ctx context.Context) (int, error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM users WHERE role = ?`, models.RoleAdmin).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count admins: %w", err)
+	}
+	return n, nil
+}
+
 // GetUserByID returns a user by id, or ErrNotFound.
 func (s *Store) GetUserByID(ctx context.Context, id string) (models.User, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE id = ?`, id)

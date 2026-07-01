@@ -91,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/account/password", s.requireAuth(s.handleChangePassword))
 	mux.Handle("GET /api/nets", s.requireAuth(s.handleListNets))
 	mux.Handle("GET /api/nets/{id}", s.requireAuth(s.handleGetNet))
+	mux.Handle("POST /api/nets/{id}/ncs", s.requireAuth(s.handleReassignNCS))
 	mux.Handle("GET /api/callsign/{call}", s.requireAuth(s.handleGetCallsign))
 	mux.Handle("POST /api/callsign/{call}/refresh", s.requireAuth(s.handleRefreshCallsign))
 	mux.Handle("GET /api/sync", s.requireAuth(s.handlePull))
@@ -100,6 +101,7 @@ func (s *Server) Handler() http.Handler {
 	// Admin endpoints.
 	mux.Handle("GET /api/admin/users", s.requireAdmin(s.handleListUsers))
 	mux.Handle("POST /api/admin/users", s.requireAdmin(s.handleCreateUser))
+	mux.Handle("PATCH /api/admin/users/{id}", s.requireAdmin(s.handleUpdateUser))
 
 	// SPA (and 404 for unknown /api routes).
 	mux.Handle("/", s.spaHandler())

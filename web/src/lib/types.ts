@@ -29,6 +29,9 @@ export interface Net {
   updatedAt: string;
   deletedAt?: string | null;
   ncsCallsign?: string;
+  // canManage is computed by the server per requesting user: true for an admin
+  // or a member of the net's controller set. Drives edit-control gating offline.
+  canManage?: boolean;
 }
 
 export interface NetWithMeta extends Net {
