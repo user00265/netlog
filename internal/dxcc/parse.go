@@ -57,6 +57,7 @@ type ctyZoneExc struct {
 func parse(r io.Reader) (*ctyFile, error) {
 	var f ctyFile
 	dec := xml.NewDecoder(r)
+	dec.Strict = false // cty.xml sometimes ships bare & (e.g. entity names); non-strict keeps it as literal text
 	if err := dec.Decode(&f); err != nil {
 		return nil, fmt.Errorf("decode cty.xml: %w", err)
 	}
