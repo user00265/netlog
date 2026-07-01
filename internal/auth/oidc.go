@@ -13,10 +13,12 @@ import (
 
 // OIDCProvider wraps a configured single OIDC provider for the auth-code flow.
 type OIDCProvider struct {
-	issuer   string
-	provider *oidc.Provider
-	verifier *oidc.IDTokenVerifier
-	oauth    oauth2.Config
+	issuer              string
+	provider            *oidc.Provider
+	verifier            *oidc.IDTokenVerifier
+	oauth               oauth2.Config
+	requirePKCE         bool
+	pkceChallengeMethod string
 }
 
 // OIDCClaims are the identity claims we consume from a verified ID token.
@@ -44,15 +46,24 @@ func NewOIDCProvider(ctx context.Context, cfg config.OIDC) (*OIDCProvider, error
 	if len(scopes) == 0 {
 		scopes = []string{oidc.ScopeOpenID, "profile", "email"}
 	}
+	endpoint := provider.Endpoint()
+	switch cfg.TokenEndpointAuthMethod {
+	case "client_secret_post":
+		endpoint.AuthStyle = oauth2.AuthStyleInParams
+	case "client_secret_basic":
+		endpoint.AuthStyle = oauth2.AuthStyleInHeader
+	}
 	return &OIDCProvider{
-		issuer:   cfg.Issuer,
-		provider: provider,
-		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
+		issuer:              cfg.Issuer,
+		provider:            provider,
+		verifier:            provider.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
+		requirePKCE:         cfg.RequirePKCE,
+		pkceChallengeMethod: cfg.PKCEChallengeMethod,
 		oauth: oauth2.Config{
 			ClientID:     cfg.ClientID,
 			ClientSecret: cfg.ClientSecret,
 			RedirectURL:  cfg.RedirectURL,
-			Endpoint:     provider.Endpoint(),
+			Endpoint:     endpoint,
 			Scopes:       scopes,
 		},
 	}, nil
@@ -61,16 +72,37 @@ func NewOIDCProvider(ctx context.Context, cfg config.OIDC) (*OIDCProvider, error
 // Issuer returns the provider's issuer URL.
 func (p *OIDCProvider) Issuer() string { return p.issuer }
 
+// RequiresPKCE reports whether PKCE is enabled for the auth-code flow.
+func (p *OIDCProvider) RequiresPKCE() bool { return p.requirePKCE }
+
 // AuthCodeURL builds the authorization redirect URL with CSRF state and replay
 // nonce.
-func (p *OIDCProvider) AuthCodeURL(state, nonce string) string {
-	return p.oauth.AuthCodeURL(state, oidc.Nonce(nonce))
+func (p *OIDCProvider) AuthCodeURL(state, nonce, pkceVerifier string) string {
+	opts := []oauth2.AuthCodeOption{oidc.Nonce(nonce)}
+	if p.requirePKCE {
+		if p.pkceChallengeMethod == "plain" {
+			opts = append(opts,
+				oauth2.SetAuthURLParam("code_challenge_method", "plain"),
+				oauth2.SetAuthURLParam("code_challenge", pkceVerifier),
+			)
+		} else {
+			opts = append(opts, oauth2.S256ChallengeOption(pkceVerifier))
+		}
+	}
+	return p.oauth.AuthCodeURL(state, opts...)
 }
 
 // Exchange completes the auth-code flow: it swaps code for tokens, verifies the
 // ID token (signature, audience, expiry, nonce), and returns the claims.
-func (p *OIDCProvider) Exchange(ctx context.Context, code, expectedNonce string) (OIDCClaims, error) {
-	token, err := p.oauth.Exchange(ctx, code)
+func (p *OIDCProvider) Exchange(ctx context.Context, code, expectedNonce, pkceVerifier string) (OIDCClaims, error) {
+	opts := []oauth2.AuthCodeOption{}
+	if p.requirePKCE {
+		if pkceVerifier == "" {
+			return OIDCClaims{}, errors.New("oidc pkce verifier missing")
+		}
+		opts = append(opts, oauth2.VerifierOption(pkceVerifier))
+	}
+	token, err := p.oauth.Exchange(ctx, code, opts...)
 	if err != nil {
 		return OIDCClaims{}, fmt.Errorf("oidc token exchange: %w", err)
 	}

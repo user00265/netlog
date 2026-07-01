@@ -104,6 +104,53 @@ callbook:
 	}
 }
 
+func TestLoadOIDCPKCEDefaultsAndTokenAuthMethod(t *testing.T) {
+	p := writeConfig(t, `
+server:
+  base_url: "http://localhost:8080"
+oidc:
+  enabled: true
+  issuer: "https://idp.example.com"
+  client_id: "netlog"
+  client_secret: "secret"
+  require_pkce: true
+  token_endpoint_auth_method: "client_secret_post"
+callbook:
+  order: ["qrz"]
+`)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.OIDC.RequirePKCE {
+		t.Fatal("RequirePKCE should be true")
+	}
+	if cfg.OIDC.PKCEChallengeMethod != "S256" {
+		t.Fatalf("PKCEChallengeMethod = %q, want S256", cfg.OIDC.PKCEChallengeMethod)
+	}
+	if cfg.OIDC.TokenEndpointAuthMethod != "client_secret_post" {
+		t.Fatalf("TokenEndpointAuthMethod = %q", cfg.OIDC.TokenEndpointAuthMethod)
+	}
+}
+
+func TestLoadOIDCRejectsInvalidTokenEndpointAuthMethod(t *testing.T) {
+	p := writeConfig(t, `
+server:
+  base_url: "http://localhost:8080"
+oidc:
+  enabled: true
+  issuer: "https://idp.example.com"
+  client_id: "netlog"
+  client_secret: "secret"
+  token_endpoint_auth_method: "private_key_jwt"
+callbook:
+  order: ["qrz"]
+`)
+	if _, err := Load(p); err == nil {
+		t.Fatal("expected validation error for unsupported token_endpoint_auth_method")
+	}
+}
+
 func TestLoadRejectsBadProvider(t *testing.T) {
 	p := writeConfig(t, `
 server:

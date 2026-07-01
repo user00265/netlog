@@ -34,6 +34,14 @@ oidc:
   # Defaults to <base_url>/api/auth/oidc/callback when blank.
   redirect_url: ""
   scopes: ["openid", "profile", "email"]
+  # Optional PKCE settings (useful with providers that require PKCE for
+  # confidential clients, such as Authelia).
+  require_pkce: false
+  # S256 (recommended/default when require_pkce=true) or plain.
+  pkce_challenge_method: "S256"
+  # Optional token endpoint client authentication method.
+  # client_secret_basic (default oauth2 behavior) or client_secret_post.
+  token_endpoint_auth_method: ""
 
 callbook:
   # Lookup priority: the first provider is primary, the rest are fallbacks.
@@ -56,6 +64,7 @@ callbook:
 #   NETLOG_DB_PATH, NETLOG_DATA_DIR, NETLOG_ADDR, NETLOG_BASE_URL,
 #   NETLOG_LOG_LEVEL, NETLOG_LOG_FORMAT,
 #   NETLOG_OIDC_ENABLED, NETLOG_OIDC_ISSUER, NETLOG_OIDC_CLIENT_ID, NETLOG_OIDC_CLIENT_SECRET,
+#   NETLOG_OIDC_REQUIRE_PKCE, NETLOG_OIDC_PKCE_CHALLENGE_METHOD, NETLOG_OIDC_TOKEN_ENDPOINT_AUTH_METHOD,
 #   NETLOG_QRZ_USERNAME, NETLOG_QRZ_PASSWORD,
 #   NETLOG_HAMQTH_USERNAME, NETLOG_HAMQTH_PASSWORD
 #

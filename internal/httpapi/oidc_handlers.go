@@ -12,6 +12,7 @@ import (
 const (
 	oidcStateCookie = "netlog_oidc_state"
 	oidcNonceCookie = "netlog_oidc_nonce"
+	oidcPKCECookie  = "netlog_oidc_pkce_verifier"
 )
 
 // handleOIDCStart begins the OIDC auth-code flow, stashing CSRF state and replay
@@ -23,13 +24,21 @@ func (s *Server) handleOIDCStart(w http.ResponseWriter, r *http.Request) {
 	}
 	state, err1 := auth.NewToken()
 	nonce, err2 := auth.NewToken()
-	if err1 != nil || err2 != nil {
+	var pkceVerifier string
+	var err3 error
+	if s.oidc.RequiresPKCE() {
+		pkceVerifier, err3 = auth.NewToken()
+	}
+	if err1 != nil || err2 != nil || err3 != nil {
 		s.writeError(w, http.StatusInternalServerError, "could not start OIDC flow")
 		return
 	}
 	s.setShortCookie(w, oidcStateCookie, state)
 	s.setShortCookie(w, oidcNonceCookie, nonce)
-	http.Redirect(w, r, s.oidc.AuthCodeURL(state, nonce), http.StatusFound)
+	if s.oidc.RequiresPKCE() {
+		s.setShortCookie(w, oidcPKCECookie, pkceVerifier)
+	}
+	http.Redirect(w, r, s.oidc.AuthCodeURL(state, nonce, pkceVerifier), http.StatusFound)
 }
 
 // handleOIDCCallback completes the flow: it verifies state, exchanges the code,
@@ -43,6 +52,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	defer s.clearShortCookie(w, oidcStateCookie)
 	defer s.clearShortCookie(w, oidcNonceCookie)
+	defer s.clearShortCookie(w, oidcPKCECookie)
 
 	stateCookie, err := r.Cookie(oidcStateCookie)
 	if err != nil || stateCookie.Value == "" || stateCookie.Value != r.URL.Query().Get("state") {
@@ -58,8 +68,17 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(oidcNonceCookie); err == nil {
 		nonce = c.Value
 	}
+	var pkceVerifier string
+	if s.oidc.RequiresPKCE() {
+		c, err := r.Cookie(oidcPKCECookie)
+		if err != nil || c.Value == "" {
+			s.writeError(w, http.StatusBadRequest, "invalid OIDC PKCE verifier")
+			return
+		}
+		pkceVerifier = c.Value
+	}
 
-	claims, err := s.oidc.Exchange(r.Context(), code, nonce)
+	claims, err := s.oidc.Exchange(r.Context(), code, nonce, pkceVerifier)
 	if err != nil {
 		s.logger.WarnContext(r.Context(), "oidc exchange failed", "error", err.Error())
 		http.Redirect(w, r, "/login?error=oidc", http.StatusFound)

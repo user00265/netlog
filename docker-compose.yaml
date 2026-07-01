@@ -57,6 +57,9 @@ services:
       # NETLOG_OIDC_ISSUER: "https://idp.example.org"
       # NETLOG_OIDC_CLIENT_ID: ""
       # NETLOG_OIDC_CLIENT_SECRET: ""
+      # NETLOG_OIDC_REQUIRE_PKCE: "true"
+      # NETLOG_OIDC_PKCE_CHALLENGE_METHOD: "S256"
+      # NETLOG_OIDC_TOKEN_ENDPOINT_AUTH_METHOD: "client_secret_post"
 
 volumes:
   netlog-data:

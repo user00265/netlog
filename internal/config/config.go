@@ -65,12 +65,15 @@ type Data struct {
 // OIDC holds optional single-provider OIDC settings. When Enabled is false the
 // other fields are ignored.
 type OIDC struct {
-	Enabled      bool     `yaml:"enabled"`
-	Issuer       string   `yaml:"issuer" validate:"required_if=Enabled true,omitempty,url"`
-	ClientID     string   `yaml:"client_id" validate:"required_if=Enabled true"`
-	ClientSecret string   `yaml:"client_secret" validate:"required_if=Enabled true"`
-	RedirectURL  string   `yaml:"redirect_url" validate:"omitempty,url"`
-	Scopes       []string `yaml:"scopes"`
+	Enabled                 bool     `yaml:"enabled"`
+	Issuer                  string   `yaml:"issuer" validate:"required_if=Enabled true,omitempty,url"`
+	ClientID                string   `yaml:"client_id" validate:"required_if=Enabled true"`
+	ClientSecret            string   `yaml:"client_secret" validate:"required_if=Enabled true"`
+	RedirectURL             string   `yaml:"redirect_url" validate:"omitempty,url"`
+	Scopes                  []string `yaml:"scopes"`
+	RequirePKCE             bool     `yaml:"require_pkce"`
+	PKCEChallengeMethod     string   `yaml:"pkce_challenge_method" validate:"omitempty,oneof=S256 plain"`
+	TokenEndpointAuthMethod string   `yaml:"token_endpoint_auth_method" validate:"omitempty,oneof=client_secret_basic client_secret_post"`
 }
 
 // Callbook configures the QRZ + HamQTH lookups. Order defines primary→fallback.
@@ -189,9 +192,12 @@ func applyEnvOverrides(cfg *Config) {
 	set(&cfg.Log.Level, "NETLOG_LOG_LEVEL")
 	set(&cfg.Log.Format, "NETLOG_LOG_FORMAT")
 	setBool(&cfg.OIDC.Enabled, "NETLOG_OIDC_ENABLED")
+	setBool(&cfg.OIDC.RequirePKCE, "NETLOG_OIDC_REQUIRE_PKCE")
 	set(&cfg.OIDC.ClientID, "NETLOG_OIDC_CLIENT_ID")
 	set(&cfg.OIDC.ClientSecret, "NETLOG_OIDC_CLIENT_SECRET")
 	set(&cfg.OIDC.Issuer, "NETLOG_OIDC_ISSUER")
+	set(&cfg.OIDC.PKCEChallengeMethod, "NETLOG_OIDC_PKCE_CHALLENGE_METHOD")
+	set(&cfg.OIDC.TokenEndpointAuthMethod, "NETLOG_OIDC_TOKEN_ENDPOINT_AUTH_METHOD")
 	set(&cfg.Callbook.QRZ.Username, "NETLOG_QRZ_USERNAME")
 	set(&cfg.Callbook.QRZ.Password, "NETLOG_QRZ_PASSWORD")
 	set(&cfg.Callbook.HamQTH.Username, "NETLOG_HAMQTH_USERNAME")
@@ -200,6 +206,15 @@ func applyEnvOverrides(cfg *Config) {
 
 // deriveDefaults fills in values that depend on other fields.
 func deriveDefaults(cfg *Config) {
+	if cfg.OIDC.PKCEChallengeMethod != "" {
+		cfg.OIDC.PKCEChallengeMethod = strings.ToUpper(cfg.OIDC.PKCEChallengeMethod)
+	}
+	if cfg.OIDC.RequirePKCE && cfg.OIDC.PKCEChallengeMethod == "" {
+		cfg.OIDC.PKCEChallengeMethod = "S256"
+	}
+	if cfg.OIDC.TokenEndpointAuthMethod != "" {
+		cfg.OIDC.TokenEndpointAuthMethod = strings.ToLower(cfg.OIDC.TokenEndpointAuthMethod)
+	}
 	if cfg.OIDC.Enabled && cfg.OIDC.RedirectURL == "" {
 		cfg.OIDC.RedirectURL = strings.TrimRight(cfg.Server.BaseURL, "/") + "/api/auth/oidc/callback"
 	}
