@@ -13,7 +13,7 @@
 
 services:
   netlog:
-    image: ghcr.io/user00265/netlog:latest
+    image: ghcr.io/user00265/netlog:latest@sha256:7aee8e42c53662099774f22835928f551d7ebc7d300ec80fd2341785f8a32c98
     # Pin to a specific release instead of `latest` for reproducible deploys,
     # e.g. ghcr.io/user00265/netlog:v1.2.3 — or :testing for the bleeding edge.
     container_name: netlog
