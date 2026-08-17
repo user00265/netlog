@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 
 # NetLog container image.
 #
@@ -22,7 +22,7 @@
 # ownership; nothing from this stage ships in the final image (which is 100%
 # DHI), so it intentionally uses a plain upstream busybox to avoid a second
 # registry login for a discarded layer.
-FROM --platform=$BUILDPLATFORM busybox:stable AS prep
+FROM --platform=$BUILDPLATFORM busybox:stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 AS prep
 RUN mkdir -p /seed/data
 
 # Bump this dated tag via your image-update automation (Renovate/Dependabot);
